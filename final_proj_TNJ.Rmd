@@ -1,0 +1,198 @@
+---
+title: "QMB 5565 - Final Project"
+author: "Taryn Jones `tjones7231@floridapoly.edu`"
+subtitle: "Quantitative Empirical Research Methods"
+output: html_notebook
+---
+
+
+### Part 1: Introduction
+**Brief Description:** In 2012, the Massachusetts Institute of Technology (MIT) and Harvard University launched open online courses on edX, a non-profit learning platform co-founded by the two institutions. Data contains information on 290 Harvard and MIT online courses, 250 thousand certifications, 4.5 million participants, and 28 million participant hours on the edX platform since 2012. 
+
+*Source: qmb_project_fl_18.pdf by Rei Sanchez-Arias*    
+*NOTE: data recorded from years 2012 - 2016*
+
+**Research Question:** What is the trend of female viewers of these open online courses?
+
+**Importance:** I personally would like to know the trends of females in this dataset, since women are often know as the nuturers in society. They are notorious for not seeking opportunities for career/status advancement when compared to male counterparts considering the future of their families. I would like to see the trend of females aware of a very good resource to advance their careers in additon to how many are specifically advancing themselves in the STEM field amongst all peers and then amongst the female peers. Others should be concerned with this topic to help shape how they reach out to women they want to be an active part of the STEM field or other career paths.
+```{r}
+library(tidyverse)
+```
+
+```{r}
+hM <- read_csv("https://raw.githubusercontent.com/reisanar/datasets/master/harvardMIT.csv")
+```
+
+
+
+### Part 2: Exploratory Data Analysis (EDA)
+**Descriptive Statistics**
+```{r}
+# Variable names
+glimpse(hM)
+```
+
+```{r}
+# Renaming some variables to simpler names
+hM <- hM %>% 
+  rename(C.Num = `Course Number`,
+         L.Date = `Launch Date`,
+         C.Title = `Course Title`, 
+         C.Subj = `Course Subject`,
+         HCC = `Honor Code Certificates`,
+         Participants = `Participants (Course Content Accessed)`,
+         Audit50 = `Audited (> 50% Course Content Accessed)`,
+         Audit = `% Audited`,
+         Cert = `% Certified`,
+         Cert50 = `% Certified of > 50% Course Content Accessed`,
+         Video = `% Played Video`,
+         Forum = `% Posted in Forum`, 
+         Grade = `% Grade Higher Than Zero`, 
+         T.C.Hr = `Total Course Hours (Thousands)`, 
+         Med.Cert.Hr = `Median Hours for Certification`, 
+         Med.Age = `Median Age`, 
+         Male = `% Male`, 
+         Female = `% Female`, 
+         Bach.Deg = `% Bachelor's Degree or Higher`)
+```
+
+```{r}
+# Using "View" to have a look at the data and observe trends.
+hM %>%
+  View()
+
+#Summary of main data set
+summary(hM)
+```
+ The variables Institution, C.Num, L.Date, C.Title, Instructors, C.Subj, Year, HCC, Video, and Forum are categorical data, while the rest are numerical.
+
+
+**Exploratory Data Analysis**
+```{r}
+# Distribution of % females from the data set
+hM %>%
+  ggplot(aes(Female))+
+  geom_histogram()
+```
+The histogram for female students shows about 2 main peaks, so the percent of women in each course type varies. However, the distribution falls mainly below 50% of females in the course.
+
+```{r}
+# Distribution of % males from the data set
+hM %>%
+  ggplot(aes(Male))+
+  geom_histogram()
+```
+The histogram for male students shows a sharp peak around 85% Males and another one near 60%. They have generally more representation than women, since their data weight falls mainly above 50% (as compared to females).
+
+```{r}
+# Distribution of % females per course subject
+hM %>%
+  mutate(C.Subj=fct_reorder(C.Subj, Female)) %>%
+  ggplot(aes(C.Subj, Female))+
+  geom_boxplot()+
+  expand_limits(y=0)+
+  coord_flip()
+
+# Distribution of % males per course subject
+hM %>%
+  mutate(C.Subj=fct_reorder(C.Subj, Male)) %>%
+  ggplot(aes(C.Subj, Male))+
+  geom_boxplot()+
+  expand_limits(y=0)+
+  coord_flip()
+```
+
+The box plot shows a low trend in female participants viewing course in Computer Science and STEM and a high trend for Humanities, History, Design, Religion, and Education & Government, Health, and Social Science. Males show an opposite trend leading Computer Science & STEM and trailing in the other subjects.
+
+```{r}
+# Pre-processing
+fc_processed <- hM %>%
+  arrange(desc(Bach.Deg)) %>%
+  mutate(C.Subj=fct_reorder(C.Subj,Bach.Deg))
+```
+
+```{r}
+# Institution vs. Gender
+fc_processed %>%
+  arrange(desc(Participants)) %>%
+  #head(20) %>%
+  mutate(Institution=fct_reorder(Institution, Participants)) %>%
+  gather(Gender, Number, Female, Male) %>%
+  select(Institution, Gender, Number) %>%
+  ggplot(aes(Institution, Number, fill=Gender))+
+  geom_col()+
+  coord_flip()
+```
+Even though the males remianed the majority at both institutions, females trended more with a liberal arts university as opposed to a STEM one.
+
+
+
+### Part 3: Inference & Modeling
+**Required Conditions**
+```{r}
+# Other variables omitted to create list of relevant variables
+m1<- lm( data = hM, Female ~ Institution + C.Subj + Year + HCC + Participants + Grade + T.C.Hr + Med.Cert.Hr + Med.Age + Male + Bach.Deg)
+
+summary(m1)
+
+```
+
+```{r}
+library(leaps)
+
+# best subset regression
+sub.fit <- regsubsets(Female ~ Institution + C.Subj + Year + HCC + Participants + Grade + T.C.Hr + Med.Cert.Hr + Med.Age + Male + Bach.Deg, data = hM)
+
+best.summary <- summary(sub.fit)
+
+par(mfrow = c(1,2))
+
+# plots
+plot(best.summary$cp, xlab = "number of features", ylab = "Cp")
+
+plot(sub.fit, scale = "Cp")
+```
+
+The linear model is made to give a descriptive analysis on which subjects they are likely to partake in depending on various factors. Observing the model and looking for the best.summary, it is found that 8 variables would be best describing the model including Female as the predictive variable and Institution, C.Subj, Year, HCC, Participants, and Male (this includes the subcategories of courses and institution).
+
+
+**Regression Analysis:** The model needs to be modified, so taking the previous information the new model is made.
+```{r}
+m1_new<- lm( data = hM, Female ~ Institution + C.Subj + Year + HCC + Participants + Male)
+
+summary(m1_new)
+```
+```{r}
+#Diagnostic Plots
+par(mfrow = c(2,2))
+plot(m1_new, which = 1:4)
+```
+It has a nice distribution with a few outliers on the ends of the spectrum, but they have little influence. The model is a better fit than the first one due to fulfilling the requird variables for best fit.
+```{r}
+# % Bachelors Degree vs. % Females classified by Course Subject
+fc_processed %>%
+  ggplot(aes(Female, Bach.Deg, color=C.Subj))+
+  geom_point()+
+  geom_smooth(aes(group=1),method = "lm")+
+  expand_limits(y=0)
+```
+
+```{r}
+fc_processed %>%
+  select(C.Title, Participants, Female, Bach.Deg) %>%
+  lm(Bach.Deg ~ Female, data = ., weights = Participants) %>%
+  summary()
+```
+
+**Results:** For the second linear model, the % bachelors degree was taken as the predictive value with the % female taken as explanatory. It is a good fit of variables although the model does not perform as well as the previous models with an R^2 value of 0.2.
+
+
+
+### Part 4: Conclusions 
+**Summary:** The females generally follow a sterotypical trend of having a larger representation in Humanities and Social Sciences as opposed to STEM. Males show the opposite trends.
+
+**Discussion:** The capability of finding corresponding trends in a desired topic is easy with the use of statistical software. As long as relevant data is available and one is capable of manipulating data to fit into necessary code, then formatting information comes with ease.
+
+In this study, data was only collected during a 4 year period. Most recent data of the last two years was not available in this set. 
+
+In the future, it would be interesting to see if various initiatives to attract more women to the STEM field had effects on this data in a positive correlation between % females and more science-based subjects. Another interesting study would be the % males and % females who sign up for classes where the professor has a feminine name in both cases where the professor is female or male.
